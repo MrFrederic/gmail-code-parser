@@ -80,22 +80,40 @@ def _authorised(
 # ---------------------------------------------------------------------------
 
 
+def _get_help_text() -> str:
+    """Return the up-to-date help text shown by /start and /help."""
+    return (
+        "👋 <b>Welcome to the Gmail 2FA Relay Bot!</b>\n\n"
+        "I forward two-factor authentication codes and verification "
+        "links from your Gmail accounts straight to this chat. "
+        "Codes arrive as tap-to-copy buttons, and links appear as "
+        "inline action buttons inside each account's topic.\n\n"
+        "<b>Commands:</b>\n"
+        "/add — Connect a new Gmail account\n"
+        "/remove — Disconnect a Gmail account\n"
+        "/list — Show connected accounts\n"
+        "/help — Show this help message"
+    )
+
+
 @_authorised
 async def start_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """Handle the /start command with a welcome message."""
-    text = (
-        "👋 <b>Welcome to the Gmail 2FA Relay Bot!</b>\n\n"
-        "I forward two-factor authentication codes and verification "
-        "links from your Gmail accounts straight to this chat.\n\n"
-        "<b>Commands:</b>\n"
-        "/add — Connect a new Gmail account\n"
-        "/remove — Disconnect a Gmail account\n"
-        "/list — Show connected accounts"
-    )
     await update.message.reply_text(  # type: ignore[union-attr]
-        text=text,
+        text=_get_help_text(),
+        parse_mode=ParseMode.HTML,
+    )
+
+
+@_authorised
+async def help_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Handle the /help command with usage instructions."""
+    await update.message.reply_text(  # type: ignore[union-attr]
+        text=_get_help_text(),
         parse_mode=ParseMode.HTML,
     )
 
@@ -427,6 +445,7 @@ def create_bot_application() -> Application:
     )
 
     application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("add", add_command))
     application.add_handler(CommandHandler("remove", remove_command))
     application.add_handler(CommandHandler("list", list_command))

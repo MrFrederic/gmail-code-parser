@@ -7,7 +7,7 @@ Have you ever been absolutely crushed by the soul-draining burden of making *fiv
 - **Multi-account Gmail monitoring** — connect as many Gmail accounts as you need, managed entirely through Telegram commands
 - **Real-time push notifications** — uses Google Cloud Pub/Sub for instant email detection (no polling)
 - **LLM-powered extraction** — sends emails to an LLM via [OpenRouter](https://openrouter.ai) to intelligently extract 2FA codes and confirmation links
-- **Instant Telegram delivery** — codes are sent in tap-to-copy `inline code` blocks; verification links appear as clickable buttons
+- **Instant Telegram delivery** — codes are sent as tap-to-copy inline buttons; verification links appear as clickable buttons, and when both are present they sit side-by-side
 - **Per-account Telegram topics** — each connected Gmail account gets its own Telegram topic, keeping codes neatly separated by inbox
 - **Dynamic account management** — add and remove Gmail accounts on the fly with `/add`, `/remove`, and `/list`; reconnecting an account reuses its existing topic
 - **Configurable pre-filtering** — optionally skip emails that don't match 2FA-related keywords, saving LLM API costs
@@ -56,6 +56,7 @@ Have you ever been absolutely crushed by the soul-draining burden of making *fiv
 | 3 | **Telegram Bot** | Delivery channel for 2FA messages |
 | 4 | **OpenRouter API key** | LLM access for email parsing |
 | 5 | **A public hostname or tunnel** | OAuth2 redirect callback |
+| 6 | **Somewhere to host the bot** | Duh... VPS, homelab, or even a Raspberry Pi. |
 
 ## Setup Guide
 
@@ -129,7 +130,7 @@ Have you ever been absolutely crushed by the soul-draining burden of making *fiv
 4. In **BotFather**, enable **forum topic mode** for the bot so it can create and use topics inside the private chat.
 5. To find your **chat ID**, start a chat with [@userinfobot](https://t.me/userinfobot) and it will reply with your numeric chat ID. Use this for `ALLOWED_CHAT_ID`.
 
-> The bot now creates one Telegram topic per connected Gmail account. If you remove and later reconnect the same address, the bot reopens and reuses that existing topic.
+> It is recommended that you have a Telegram premium subscription because otherwise icons will get all messed up and the UX will be subpar. But it is not strictly required.
 
 ### 4. OpenRouter Setup
 
@@ -222,28 +223,24 @@ When a 2FA email is detected, the bot posts it inside that account's dedicated T
 >
 > GitHub login verification code
 >
-> 🔑 Code: `849302`
+> `[ 849302 ]   [ Verify / Confirm ]`
 
 - **The topic name identifies the Gmail account**, so the message body no longer repeats the receiving address.
-- **Verification codes** appear in an inline code block (`849302`) — tap it on mobile to copy the code to your clipboard.
-- **Confirmation links** appear as a clickable inline button labeled **🔗 Verify / Confirm** that opens the URL directly.
-- If an email contains both a code and a link, both are included in the same message.
+- **Verification codes** appear as a tap-to-copy inline button labeled with the code itself (for example, `849302`).
+- **Confirmation links** appear as a clickable inline button labeled **Verify / Confirm** that opens the URL directly.
+- If an email contains both a code and a link, the two buttons are shown side-by-side in a single row.
+- If an email contains only a code or only a link, only the relevant button is shown.
 - Removing an account closes its topic; reconnecting the same address reopens and reuses it.
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| **Bot doesn't respond to commands** | Verify `TELEGRAM_BOT_TOKEN` and `ALLOWED_CHAT_ID` are correct. The bot silently ignores messages from unauthorized chats. |
-| **Topics are not being created / messages are not going into topics** | Make sure **forum topic mode** is enabled for the bot in BotFather. If you use a supergroup instead of a private chat, enable Topics in the group and ensure the bot has permission to manage them. |
-| **OAuth callback fails with "Bad Request"** | The OAuth state has expired (states are single-use and time-limited). Send `/add` again to generate a fresh link. |
-| **"Token refresh failed" alert** | The refresh token was revoked (e.g. password change, permissions revoked). Remove the account with `/remove` and re-add it with `/add`. |
-| **No emails are being relayed** | Check that the Pub/Sub topic, subscription, and Gmail publish permissions are configured correctly. Ensure the service account key is accessible and `GOOGLE_APPLICATION_CREDENTIALS` is set. |
-| **Pre-filter is too aggressive** | Set `ENABLE_PRE_FILTER=false` to send all emails to the LLM. The keyword list targets common 2FA terms (code, verification, login, OTP, etc.). |
-| **LLM returns no results** | Verify `OPENROUTER_API_KEY` is valid and the chosen model is available. Check the application logs for API error details. |
-| **OAuth consent screen shows "unverified app"** | This is expected while your GCP app is in testing mode. Click *Continue* to proceed. Add all monitored Gmail addresses as test users in the consent screen configuration. |
-| **Emails not archiving** | Set `ARCHIVE_PROCESSED_EMAILS=true` in your `.env` file and restart the bot. |
+Just ask ChatGPT or somthing, it is 2026.
+If you found a bug or have a feature request, open an issue on GitHub.
 
 ## License
 
 This project is licensed under the [GNU General Public License v3.0](LICENSE).
+
+---
+
+**MFCORP INDUSTRIAL SOLUTIONS** // 2026 ALL RIGHTS RESERVED
