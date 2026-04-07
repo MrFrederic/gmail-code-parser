@@ -55,6 +55,14 @@ async def init_db() -> None:
             )
             """
         )
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS topics (
+                email_address     TEXT PRIMARY KEY,
+                message_thread_id INTEGER NOT NULL
+            )
+            """
+        )
         await conn.commit()
         logger.info("Database initialised at %s", DB_PATH)
     finally:
@@ -196,6 +204,55 @@ async def update_history_id(email: str, history_id: str) -> None:
         )
         await conn.commit()
         logger.debug("Updated history_id for %s to %s", email, history_id)
+    finally:
+        await conn.close()
+
+
+async def get_topic_thread_id(email: str) -> int | None:
+    """Return the forum topic thread ID for the given email, or ``None``.
+
+    Args:
+        email: Gmail address to look up.
+
+    Returns:
+        The Telegram message-thread ID, or ``None`` if no mapping exists.
+    """
+    conn = await _get_connection()
+    try:
+        cursor = await conn.execute(
+            "SELECT message_thread_id FROM topics WHERE email_address = ?",
+            (email,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return int(row["message_thread_id"])
+    finally:
+        await conn.close()
+
+
+async def save_topic_thread_id(email: str, thread_id: int) -> None:
+    """Persist the forum topic thread ID for an email account (upsert).
+
+    Args:
+        email: Gmail address to associate with the topic.
+        thread_id: Telegram message-thread ID returned by ``createForumTopic``.
+    """
+    conn = await _get_connection()
+    try:
+        await conn.execute(
+            """
+            INSERT INTO topics (email_address, message_thread_id)
+            VALUES (?, ?)
+            ON CONFLICT(email_address) DO UPDATE SET
+                message_thread_id = excluded.message_thread_id
+            """,
+            (email, thread_id),
+        )
+        await conn.commit()
+        logger.info(
+            "Saved topic thread %d for %s", thread_id, email
+        )
     finally:
         await conn.close()
 

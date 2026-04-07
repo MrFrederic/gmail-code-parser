@@ -9,10 +9,17 @@ import html
 import logging
 import os
 import secrets
+from email.utils import parseaddr
 from functools import wraps
 from typing import Callable, Coroutine
 
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import (
+    Bot,
+    CopyTextButton,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Update,
+)
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
@@ -107,7 +114,9 @@ async def add_command(
         [
             [
                 InlineKeyboardButton(
-                    text="🔗 Login to Google", url=auth_url
+                    text="Login to Google",
+                    url=auth_url,
+                    icon_custom_emoji_id="5325520389160341366",
                 )
             ]
         ]
@@ -204,11 +213,79 @@ async def remove_account_callback(
 
     await database.remove_account(email)
 
+    try:
+        await close_account_topic(context.bot, email)
+    except Exception:
+        logger.exception("Failed to close topic for %s during removal", email)
+
     await query.edit_message_text(  # type: ignore[union-attr]
         f"✅ Account <b>{html.escape(email)}</b> has been removed.",
         parse_mode=ParseMode.HTML,
     )
     logger.info("Removed account %s via /remove", email)
+
+
+# ---------------------------------------------------------------------------
+# Forum-topic helpers
+# ---------------------------------------------------------------------------
+
+
+async def get_or_create_topic(bot: Bot, email: str) -> int:
+    """Return the forum-topic thread ID for *email*, creating one if needed.
+
+    If a topic was previously created for this email (even if the account
+    was since removed), it is reused and reopened.  Otherwise a brand-new
+    topic is created via the Telegram API and its ID is persisted.
+
+    Args:
+        bot: A ``telegram.Bot`` instance.
+        email: Gmail address that identifies the topic.
+
+    Returns:
+        The ``message_thread_id`` to use with ``send_message``.
+    """
+    chat_id = _get_allowed_chat_id()
+
+    thread_id = await database.get_topic_thread_id(email)
+    if thread_id is not None:
+        try:
+            await bot.reopen_forum_topic(
+                chat_id=chat_id, message_thread_id=thread_id
+            )
+        except Exception:
+            # Already open or other non-critical error — carry on.
+            pass
+        return thread_id
+
+    topic = await bot.create_forum_topic(chat_id=chat_id, name=email)
+    await database.save_topic_thread_id(email, topic.message_thread_id)
+    logger.info(
+        "Created forum topic %d for %s", topic.message_thread_id, email
+    )
+    return topic.message_thread_id
+
+
+async def close_account_topic(bot: Bot, email: str) -> None:
+    """Close (archive) the forum topic associated with *email*.
+
+    Does nothing if the email has no stored topic mapping.
+
+    Args:
+        bot: A ``telegram.Bot`` instance.
+        email: Gmail address whose topic should be closed.
+    """
+    thread_id = await database.get_topic_thread_id(email)
+    if thread_id is None:
+        return
+
+    chat_id = _get_allowed_chat_id()
+    try:
+        await bot.close_forum_topic(
+            chat_id=chat_id, message_thread_id=thread_id
+        )
+        logger.info("Closed forum topic %d for %s", thread_id, email)
+    except Exception:
+        logger.exception("Failed to close topic for %s", email)
 
 
 # ---------------------------------------------------------------------------
@@ -222,34 +299,64 @@ async def send_2fa_message(
     summary: str,
     code: str | None,
     link: str | None,
+    sender_email: str | None = None,
 ) -> None:
-    """Send a formatted 2FA notification to the authorised chat.
+    """Send a formatted 2FA notification to the account's forum topic.
+
+    The message is routed to the topic that corresponds to *email*; a
+    new topic is created automatically if one does not yet exist.
 
     Args:
         bot: A ``telegram.Bot`` instance.
-        email: The Gmail address the message originated from.
+        email: The connected Gmail account that received the message.
         summary: A human-readable summary of the 2FA email.
         code: The extracted verification code, or ``None``.
         link: The extracted verification link, or ``None``.
+        sender_email: The sender address from the original email, if available.
     """
     chat_id = _get_allowed_chat_id()
+    thread_id = await get_or_create_topic(bot, email)
 
-    parts = [
-        f"📬 <b>{html.escape(email)}</b>\n",
-        html.escape(summary),
-    ]
+    parsed_sender = parseaddr(sender_email or "")[1] or (sender_email or "")
+
+    parts: list[str] = []
+
+    if parsed_sender:
+        parts.append(
+            f'<tg-emoji emoji-id="5325911231184278615">📨</tg-emoji> '
+            f"<b>From:</b> {html.escape(parsed_sender)}"
+        )
+
+    if summary:
+        if parts:
+            parts.append("")
+        parts.append(html.escape(summary))
+
+    buttons: list[InlineKeyboardButton] = []
 
     if code:
-        parts.append(f"\n🔑 Code: <code>{html.escape(code)}</code>")
-
-    reply_markup = None
-    if link:
-        reply_markup = InlineKeyboardMarkup(
-            [[InlineKeyboardButton(text="🔗 Verify / Confirm", url=link)]]
+        buttons.append(
+            InlineKeyboardButton(
+                text=code,
+                copy_text=CopyTextButton(text=code),
+                icon_custom_emoji_id="5325998358890845889",
+            )
         )
+
+    if link:
+        buttons.append(
+            InlineKeyboardButton(
+                text="Verify / Confirm",
+                url=link,
+                icon_custom_emoji_id="5325520389160341366",
+            )
+        )
+
+    reply_markup = InlineKeyboardMarkup([buttons]) if buttons else None
 
     await bot.send_message(
         chat_id=chat_id,
+        message_thread_id=thread_id,
         text="\n".join(parts),
         parse_mode=ParseMode.HTML,
         reply_markup=reply_markup,

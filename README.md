@@ -1,6 +1,6 @@
 # Gmail-to-Telegram 2FA Relay Bot
 
-A Python automation service that monitors multiple Gmail inboxes for two-factor authentication codes, login verifications, and confirmation links, then relays them to Telegram for instant access on your phone or desktop.
+Have you ever been absolutely crushed by the soul-draining burden of making *five whole clicks* just to open your email and copy a 2FA code? Fear no more, because this Python automation marvel is here to rescue you from that unspeakable hardship. It monitors multiple Gmail inboxes for two-factor authentication codes, login verifications, and confirmation links, then relays them straight to Telegram for instant access on your phone or desktop—so you can reclaim those precious, life-altering seconds.
 
 ## Features
 
@@ -8,7 +8,8 @@ A Python automation service that monitors multiple Gmail inboxes for two-factor 
 - **Real-time push notifications** — uses Google Cloud Pub/Sub for instant email detection (no polling)
 - **LLM-powered extraction** — sends emails to an LLM via [OpenRouter](https://openrouter.ai) to intelligently extract 2FA codes and confirmation links
 - **Instant Telegram delivery** — codes are sent in tap-to-copy `inline code` blocks; verification links appear as clickable buttons
-- **Dynamic account management** — add and remove Gmail accounts on the fly with `/add`, `/remove`, and `/list`
+- **Per-account Telegram topics** — each connected Gmail account gets its own Telegram topic, keeping codes neatly separated by inbox
+- **Dynamic account management** — add and remove Gmail accounts on the fly with `/add`, `/remove`, and `/list`; reconnecting an account reuses its existing topic
 - **Configurable pre-filtering** — optionally skip emails that don't match 2FA-related keywords, saving LLM API costs
 - **Optional email archiving** — automatically remove processed emails from your inbox after relaying
 - **Docker-ready deployment** — ships with a `Dockerfile` and `docker-compose.yml` for one-command setup
@@ -29,14 +30,14 @@ A Python automation service that monitors multiple Gmail inboxes for two-factor 
                                                │ Gmail API│ │ LLM via  │
                                                │          │ │OpenRouter│
                                                └──────────┘ └────┬─────┘
-                                                                  │
-                                                          send    │
-                                                          message │
-                                                                  ▼
-                                                          ┌──────────────┐
-                                                          │   Telegram   │
-                                                          │     Chat     │
-                                                          └──────────────┘
+                                                                 │
+                                                         send    │
+                                                         message │
+                                                                 ▼
+                                                         ┌──────────────┐
+                                                         │   Telegram   │
+                                                         │     Chat     │
+                                                         └──────────────┘
 ```
 
 1. Gmail receives a new email and pushes a notification to a Cloud Pub/Sub topic.
@@ -125,7 +126,10 @@ A Python automation service that monitors multiple Gmail inboxes for two-factor 
 1. Open a chat with [@BotFather](https://t.me/BotFather) on Telegram.
 2. Send `/newbot` and follow the prompts to create a bot.
 3. Copy the **bot token** — you'll need it for `TELEGRAM_BOT_TOKEN`.
-4. To find your **chat ID**, start a chat with [@userinfobot](https://t.me/userinfobot) and it will reply with your numeric chat ID. Use this for `ALLOWED_CHAT_ID`.
+4. In **BotFather**, enable **forum topic mode** for the bot so it can create and use topics inside the private chat.
+5. To find your **chat ID**, start a chat with [@userinfobot](https://t.me/userinfobot) and it will reply with your numeric chat ID. Use this for `ALLOWED_CHAT_ID`.
+
+> The bot now creates one Telegram topic per connected Gmail account. If you remove and later reconnect the same address, the bot reopens and reuses that existing topic.
 
 ### 4. OpenRouter Setup
 
@@ -145,7 +149,7 @@ cp .env.example .env
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather | — | Yes |
-| `ALLOWED_CHAT_ID` | Numeric Telegram chat ID authorized to use the bot | — | Yes |
+| `ALLOWED_CHAT_ID` | Numeric Telegram chat ID authorized to use the bot and host the per-account topics | — | Yes |
 | `OPENROUTER_API_KEY` | API key from OpenRouter | — | Yes |
 | `OPENROUTER_MODEL` | LLM model identifier on OpenRouter | `google/gemini-2.0-flash-001` | No |
 | `GCP_PROJECT_ID` | Google Cloud project ID | — | Yes |
@@ -207,27 +211,31 @@ Start a conversation with your bot on Telegram and use these commands:
 2. Click the **Login to Google** button the bot sends.
 3. Sign in with the Gmail account you want to monitor and grant permissions.
 4. You'll see a success page in the browser, and the bot sends a confirmation message in Telegram.
-5. The account is now being monitored — any 2FA email will be relayed automatically.
+5. A dedicated Telegram topic named after that Gmail address is created (or reopened, if it existed before).
+6. The account is now being monitored — any 2FA email will be relayed automatically into that topic.
 
 ## Message Format
 
-When a 2FA email is detected, the bot sends a message like:
+When a 2FA email is detected, the bot posts it inside that account's dedicated Telegram topic. A typical message looks like:
 
-> 📬 **user@gmail.com**
+> 📨 **From:** `noreply@github.com`
 >
 > GitHub login verification code
 >
 > 🔑 Code: `849302`
 
+- **The topic name identifies the Gmail account**, so the message body no longer repeats the receiving address.
 - **Verification codes** appear in an inline code block (`849302`) — tap it on mobile to copy the code to your clipboard.
 - **Confirmation links** appear as a clickable inline button labeled **🔗 Verify / Confirm** that opens the URL directly.
 - If an email contains both a code and a link, both are included in the same message.
+- Removing an account closes its topic; reconnecting the same address reopens and reuses it.
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
 | **Bot doesn't respond to commands** | Verify `TELEGRAM_BOT_TOKEN` and `ALLOWED_CHAT_ID` are correct. The bot silently ignores messages from unauthorized chats. |
+| **Topics are not being created / messages are not going into topics** | Make sure **forum topic mode** is enabled for the bot in BotFather. If you use a supergroup instead of a private chat, enable Topics in the group and ensure the bot has permission to manage them. |
 | **OAuth callback fails with "Bad Request"** | The OAuth state has expired (states are single-use and time-limited). Send `/add` again to generate a fresh link. |
 | **"Token refresh failed" alert** | The refresh token was revoked (e.g. password change, permissions revoked). Remove the account with `/remove` and re-add it with `/add`. |
 | **No emails are being relayed** | Check that the Pub/Sub topic, subscription, and Gmail publish permissions are configured correctly. Ensure the service account key is accessible and `GOOGLE_APPLICATION_CREDENTIALS` is set. |

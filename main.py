@@ -30,8 +30,37 @@ ARCHIVE_PROCESSED_EMAILS = os.getenv("ARCHIVE_PROCESSED_EMAILS", "false").lower(
 PUBSUB_CALLBACK_TIMEOUT = 120
 
 PRE_FILTER_PATTERN = re.compile(
-    r"(code|verification|verify|login|sign\s*in|authenticate|2fa|mfa|password|otp)",
-    re.IGNORECASE,
+    r"""
+    (
+        # English
+        \b(?:
+            code|otp|pin|passcode|token|password|login|log\s*in|sign\s*in|
+            verify|verification|authenticate|authentication|auth|authorized?|authorization|
+            confirm|confirmation|approve|approved|approval|secure|security|access|
+            one[\s-]*time(?:\s+(?:code|password|passcode|pin))?|
+            two[\s-]*factor|multi[\s-]*factor|
+            2fa|mfa|tfa|
+            security\s*code|verification\s*code|login\s*code|sign[\s-]*in\s*code|
+            access\s*code|confirm(?:ation)?\s*code|auth(?:entication)?\s*code
+        )\b
+        |
+        # Russian
+        \b(?:
+            код|кода|кодом|пароль|пароля|паролем|пин|пинкод|пин-код|токен|
+            подтвержд(?:ение|ения|ить|ите|ён|ена|ено|ены)|
+            подтвердите|подтвердить|вериф(?:икация|икации|ицировать|ицируйте)|
+            провер(?:ка|ки|очный|очный\s*код)|
+            вход|войти|входа|входе|логин|авторизац(?:ия|ии|ию)|
+            аутентификац(?:ия|ии|ию)|идентификац(?:ия|ии|ию)|
+            безопасност(?:ь|и)|защит(?:а|ный)|доступ(?:а)?|
+            однораз(?:овый|ового|овым)?(?:\s+(?:код|пароль))?|
+            двухфактор(?:ный|ная|ное|ной|ную)?|двухэтап(?:ный|ная|ное|ной|ную)?|
+            многофактор(?:ный|ная|ное|ной|ную)?|
+            смс[\s-]*код|код[\s-]*подтверждения|код[\s-]*доступа|код[\s-]*безопасности
+        )\b
+    )
+    """,
+    re.IGNORECASE | re.VERBOSE,
 )
 
 
@@ -45,6 +74,7 @@ async def _process_message(bot, email_address: str, msg: dict) -> None:
     subject = msg.get("subject", "")
     body = msg.get("body", "")
     message_id = msg.get("message_id", "")
+    from_address = msg.get("from_address", "")
 
     if ENABLE_PRE_FILTER and not passes_pre_filter(subject, body):
         logger.debug("Pre-filter rejected message %s for %s", message_id, email_address)
@@ -61,6 +91,7 @@ async def _process_message(bot, email_address: str, msg: dict) -> None:
         result.get("summary", ""),
         result.get("code"),
         result.get("link"),
+        sender_email=from_address,
     )
 
     if ARCHIVE_PROCESSED_EMAILS:
@@ -223,6 +254,11 @@ async def _register_watches(bot) -> None:
             new_history_id = gmail.watch_mailbox(service, email)
             await database.update_history_id(email, new_history_id)
             logger.info("Re-registered watch for %s", email)
+
+            try:
+                await telegram_bot.get_or_create_topic(bot, email)
+            except Exception:
+                logger.exception("Failed to ensure topic for %s", email)
 
         except gmail.TokenRefreshError:
             logger.error("Token refresh failed for %s during watch registration", email)
