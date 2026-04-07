@@ -12,7 +12,7 @@ import secrets
 from functools import wraps
 from typing import Callable, Coroutine
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
@@ -28,6 +28,19 @@ logger = logging.getLogger(__name__)
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 ALLOWED_CHAT_ID = os.environ.get("ALLOWED_CHAT_ID", "")
+
+
+def _get_allowed_chat_id() -> int:
+    """Return ALLOWED_CHAT_ID as an integer.
+
+    Raises:
+        ValueError: If the environment variable is missing or not numeric.
+    """
+    if not ALLOWED_CHAT_ID:
+        raise ValueError(
+            "ALLOWED_CHAT_ID environment variable is not set or empty"
+        )
+    return int(ALLOWED_CHAT_ID)
 
 
 def _authorised(
@@ -204,7 +217,7 @@ async def remove_account_callback(
 
 
 async def send_2fa_message(
-    bot,
+    bot: Bot,
     email: str,
     summary: str,
     code: str | None,
@@ -219,7 +232,7 @@ async def send_2fa_message(
         code: The extracted verification code, or ``None``.
         link: The extracted verification link, or ``None``.
     """
-    chat_id = int(ALLOWED_CHAT_ID)
+    chat_id = _get_allowed_chat_id()
 
     parts = [
         f"📬 <b>{html.escape(email)}</b>\n",
@@ -243,14 +256,14 @@ async def send_2fa_message(
     )
 
 
-async def send_error_message(bot, text: str) -> None:
+async def send_error_message(bot: Bot, text: str) -> None:
     """Send an error notification to the authorised chat.
 
     Args:
         bot: A ``telegram.Bot`` instance.
         text: The error message text.
     """
-    chat_id = int(ALLOWED_CHAT_ID)
+    chat_id = _get_allowed_chat_id()
     await bot.send_message(
         chat_id=chat_id,
         text=f"❌ <b>Error</b>\n{html.escape(text)}",
@@ -258,14 +271,14 @@ async def send_error_message(bot, text: str) -> None:
     )
 
 
-async def send_alert_message(bot, text: str) -> None:
+async def send_alert_message(bot: Bot, text: str) -> None:
     """Send an alert notification to the authorised chat.
 
     Args:
         bot: A ``telegram.Bot`` instance.
         text: The alert message text.
     """
-    chat_id = int(ALLOWED_CHAT_ID)
+    chat_id = _get_allowed_chat_id()
     await bot.send_message(
         chat_id=chat_id,
         text=f"⚠️ <b>Alert</b>\n{html.escape(text)}",
@@ -273,14 +286,14 @@ async def send_alert_message(bot, text: str) -> None:
     )
 
 
-async def send_success_message(bot, text: str) -> None:
+async def send_success_message(bot: Bot, text: str) -> None:
     """Send a success notification to the authorised chat.
 
     Args:
         bot: A ``telegram.Bot`` instance.
         text: The success message text.
     """
-    chat_id = int(ALLOWED_CHAT_ID)
+    chat_id = _get_allowed_chat_id()
     await bot.send_message(
         chat_id=chat_id,
         text=f"✅ <b>Success</b>\n{html.escape(text)}",
