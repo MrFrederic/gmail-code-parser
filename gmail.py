@@ -58,7 +58,7 @@ def _decode_base64url(data: str) -> str:
     Returns:
         The decoded UTF-8 string.
     """
-    padded = data + "=" * (4 - len(data) % 4)
+    padded = data + "=" * ((4 - len(data) % 4) % 4)
     return base64.urlsafe_b64decode(padded).decode("utf-8", errors="replace")
 
 
