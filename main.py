@@ -27,6 +27,8 @@ PUBSUB_SUBSCRIPTION_NAME = os.getenv("PUBSUB_SUBSCRIPTION_NAME", "")
 ENABLE_PRE_FILTER = os.getenv("ENABLE_PRE_FILTER", "false").lower() == "true"
 ARCHIVE_PROCESSED_EMAILS = os.getenv("ARCHIVE_PROCESSED_EMAILS", "false").lower() == "true"
 
+PUBSUB_CALLBACK_TIMEOUT = 120
+
 PRE_FILTER_PATTERN = re.compile(
     r"(code|verification|verify|login|sign\s*in|authenticate|2fa|mfa|password|otp)",
     re.IGNORECASE,
@@ -123,7 +125,7 @@ async def _handle_pubsub_notification(bot, email_address: str, history_id: str) 
         await database.disable_account(email_address)
         await telegram_bot.send_alert_message(
             bot,
-            f"⚠️ Token refresh failed for <b>{email_address}</b>. "
+            f"Token refresh failed for {email_address}. "
             "Account has been disabled. Please re-add it with /add.",
         )
     except Exception:
@@ -163,7 +165,7 @@ async def _start_pubsub_listener(bot, shutdown_event: asyncio.Event) -> None:
                         _handle_pubsub_notification(bot, email_address, history_id),
                         loop,
                     )
-                    future.result(timeout=120)
+                    future.result(timeout=PUBSUB_CALLBACK_TIMEOUT)
 
                 except Exception:
                     logger.exception("Error in Pub/Sub callback")
@@ -226,7 +228,7 @@ async def _register_watches(bot) -> None:
             await database.disable_account(email)
             await telegram_bot.send_alert_message(
                 bot,
-                f"⚠️ Token refresh failed for <b>{email}</b> during startup. "
+                f"Token refresh failed for {email} during startup. "
                 "Account has been disabled. Please re-add it with /add.",
             )
         except Exception:
