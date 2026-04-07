@@ -1,0 +1,9 @@
+python-telegram-bot==21.10
+google-api-python-client==2.159.0
+google-auth-oauthlib==1.2.1
+google-auth-httplib2==0.2.0
+google-cloud-pubsub==2.27.1
+aiohttp==3.13.3
+httpx==0.28.1
+aiosqlite==0.20.0
+python-dotenv==1.0.1
