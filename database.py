@@ -27,7 +27,9 @@ async def init_db() -> None:
 
     Also ensures the parent directory for the database file is present.
     """
-    os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
+    dir_path = os.path.dirname(DB_PATH)
+    if dir_path:
+        os.makedirs(dir_path, exist_ok=True)
 
     conn = await _get_connection()
     try:
@@ -270,6 +272,7 @@ async def cleanup_old_states(max_age_minutes: int = 30) -> None:
         max_age_minutes: Maximum age in minutes before a state is considered
             expired.  Defaults to 30.
     """
+    # Format matches SQLite's CURRENT_TIMESTAMP (UTC, 'YYYY-MM-DD HH:MM:SS')
     cutoff = (
         datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)
     ).strftime("%Y-%m-%d %H:%M:%S")
