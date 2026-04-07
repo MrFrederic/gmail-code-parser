@@ -120,9 +120,14 @@ async def _handle_oauth_callback(request: web.Request) -> web.Response:
 
         if _bot:
             try:
-                await telegram_bot.send_success_message(
-                    _bot,
-                    f"Connected and monitoring: {email}",
+                chat_id = int(os.environ.get("ALLOWED_CHAT_ID", "0"))
+                await _bot.send_message(
+                    chat_id=chat_id,
+                    text=(
+                        "✅ Successfully connected and monitoring: "
+                        f"<code>{html_mod.escape(email)}</code>."
+                    ),
+                    parse_mode=ParseMode.HTML,
                 )
             except Exception:
                 logger.exception(
