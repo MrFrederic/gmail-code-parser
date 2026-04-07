@@ -138,6 +138,8 @@ async def _start_pubsub_listener(bot, shutdown_event: asyncio.Event) -> None:
     backoff = 1
     max_backoff = 60
 
+    loop = asyncio.get_running_loop()
+
     while not shutdown_event.is_set():
         try:
             subscriber = pubsub_v1.SubscriberClient()
@@ -160,7 +162,6 @@ async def _start_pubsub_listener(bot, shutdown_event: asyncio.Event) -> None:
                         history_id,
                     )
 
-                    loop = asyncio.get_event_loop()
                     future = asyncio.run_coroutine_threadsafe(
                         _handle_pubsub_notification(bot, email_address, history_id),
                         loop,
@@ -244,6 +245,7 @@ async def main() -> None:
         loop.add_signal_handler(sig, shutdown_event.set)
 
     await database.init_db()
+    await database.cleanup_old_states()
 
     application = telegram_bot.create_bot_application()
     await application.initialize()

@@ -1,3 +1,9 @@
+"""LLM integration module for extracting 2FA codes and links from emails.
+
+Uses the OpenRouter API to send email content to a large language model
+with a strict system prompt that returns structured JSON results.
+"""
+
 import json
 import logging
 import os

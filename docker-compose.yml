@@ -6,6 +6,8 @@ services:
       - "${WEB_PORT:-8080}:${WEB_PORT:-8080}"
     volumes:
       - bot_data:/data
+      # Uncomment and adjust the path to mount your GCP service account key:
+      # - ./credentials.json:/app/credentials.json:ro
     restart: unless-stopped
 
 volumes:
