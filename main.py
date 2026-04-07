@@ -123,7 +123,7 @@ async def _handle_pubsub_notification(bot, email_address: str, history_id: str) 
         await database.disable_account(email_address)
         await telegram_bot.send_alert_message(
             bot,
-            f"⚠️ Token refresh failed for *{email_address}*. "
+            f"⚠️ Token refresh failed for <b>{email_address}</b>. "
             "Account has been disabled. Please re-add it with /add.",
         )
     except Exception:
@@ -205,7 +205,7 @@ async def _register_watches(bot) -> None:
     """Re-register Gmail watches for all enabled accounts on startup."""
     accounts = await database.get_all_accounts()
     for account in accounts:
-        email = account["email"]
+        email = account["email_address"]
         try:
             service, creds = gmail.get_gmail_service(
                 email,
@@ -226,7 +226,7 @@ async def _register_watches(bot) -> None:
             await database.disable_account(email)
             await telegram_bot.send_alert_message(
                 bot,
-                f"⚠️ Token refresh failed for *{email}* during startup. "
+                f"⚠️ Token refresh failed for <b>{email}</b> during startup. "
                 "Account has been disabled. Please re-add it with /add.",
             )
         except Exception:
