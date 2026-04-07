@@ -1,0 +1,12 @@
+services:
+  gmail-2fa-bot:
+    build: .
+    env_file: .env
+    ports:
+      - "${WEB_PORT:-8080}:${WEB_PORT:-8080}"
+    volumes:
+      - bot_data:/data
+    restart: unless-stopped
+
+volumes:
+  bot_data:
