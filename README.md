@@ -13,6 +13,7 @@ Have you ever been absolutely crushed by the soul-draining burden of making *fiv
 - **Configurable pre-filtering** — optionally skip emails that don't match 2FA-related keywords, saving LLM API costs
 - **Optional email archiving** — automatically remove processed emails from your inbox after relaying
 - **Docker-ready deployment** — ships with a `Dockerfile` and `docker-compose.yml` for one-command setup
+- **Prebuilt GHCR image** — publishes a ready-to-run container image via GitHub Container Registry for easy upgrades and deployment
 - **Automatic token refresh** — handles OAuth2 access-token renewal; disables accounts and alerts you if a refresh token is revoked
 
 ## Architecture
@@ -167,7 +168,17 @@ cp .env.example .env
 
 ## Deployment
 
-### Docker (Recommended)
+### Docker / Prebuilt Image (Recommended)
+
+A prebuilt image is available on GitHub Container Registry (GHCR):
+
+```bash
+ghcr.io/mrfrederic/gmail-code-parser:latest
+```
+
+The included `docker-compose.yml` uses that image by default.
+
+Then start the stack:
 
 ```bash
 cp .env.example .env
@@ -176,7 +187,14 @@ cp .env.example .env
 # Mount your GCP service account key into the container
 # by adding a volume in docker-compose.yml or setting the env var path accordingly
 
-docker-compose up -d
+docker compose pull
+docker compose up -d
+```
+
+If you prefer to build locally instead, uncomment the `build: .` line in `docker-compose.yml` and run:
+
+```bash
+docker compose up -d --build
 ```
 
 The `docker-compose.yml` exposes the web server port and persists the SQLite database in a named volume (`bot_data` → `/data`).
