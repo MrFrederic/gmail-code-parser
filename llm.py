@@ -11,6 +11,9 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
+if not OPENROUTER_API_KEY:
+    logger.warning("OPENROUTER_API_KEY is not set; LLM calls will fail")
+
 SYSTEM_PROMPT = """\
 You are a strict 2FA extraction assistant. Your ONLY job is to analyze an email \
 and determine whether it contains a two-factor authentication code or a \
@@ -108,7 +111,11 @@ async def extract_2fa_from_email(subject: str, body: str) -> dict | None:
         result = response.json()
         content = result["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
-        logger.error("Unexpected OpenRouter response structure: %s", exc)
+        logger.error(
+            "Unexpected OpenRouter response structure: %s — raw body: %s",
+            exc,
+            response.text,
+        )
         return None
 
     return _parse_response(content)
