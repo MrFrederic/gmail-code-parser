@@ -5,10 +5,12 @@ Google OAuth2 callback requests, persists account credentials, and sets
 up Gmail push-notification watches.
 """
 
+import html as html_mod
 import logging
 import os
 
 from aiohttp import web
+from telegram.constants import ParseMode
 
 import database
 import gmail
@@ -120,10 +122,14 @@ async def _handle_oauth_callback(request: web.Request) -> web.Response:
 
         if _bot:
             try:
-                await telegram_bot.send_success_message(
-                    _bot,
-                    f"✅ Successfully connected and monitoring: "
-                    f"<code>{email}</code>.",
+                chat_id = int(os.environ.get("ALLOWED_CHAT_ID", "0"))
+                await _bot.send_message(
+                    chat_id=chat_id,
+                    text=(
+                        f"✅ Successfully connected and monitoring: "
+                        f"<code>{html_mod.escape(email)}</code>."
+                    ),
+                    parse_mode=ParseMode.HTML,
                 )
             except Exception:
                 logger.exception(

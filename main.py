@@ -125,8 +125,8 @@ async def _handle_pubsub_notification(bot, email_address: str, history_id: str) 
         await database.disable_account(email_address)
         await telegram_bot.send_alert_message(
             bot,
-            f"Token refresh failed for {email_address}. "
-            "Account has been disabled. Please re-add it with /add.",
+            f"Authorization expired or was revoked for {email_address}. "
+            "Please use /add to reconnect this account.",
         )
     except Exception:
         logger.exception("Error handling notification for %s", email_address)
@@ -228,8 +228,8 @@ async def _register_watches(bot) -> None:
             await database.disable_account(email)
             await telegram_bot.send_alert_message(
                 bot,
-                f"Token refresh failed for {email} during startup. "
-                "Account has been disabled. Please re-add it with /add.",
+                f"Authorization expired or was revoked for {email}. "
+                "Please use /add to reconnect this account.",
             )
         except Exception:
             logger.exception("Failed to register watch for %s", email)
