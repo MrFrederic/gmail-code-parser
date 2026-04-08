@@ -12,6 +12,7 @@ import secrets
 from email.utils import parseaddr
 from functools import wraps
 from typing import Callable, Coroutine
+from urllib.parse import urlparse
 
 from telegram import (
     Bot,
@@ -311,12 +312,48 @@ async def close_account_topic(bot: Bot, email: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _normalise_link_label(link_label: str | None) -> str:
+    """Return a short, Telegram-friendly label for a verification link."""
+    cleaned = " ".join((link_label or "").split())
+    if not cleaned:
+        return "Open link"
+
+    if cleaned.casefold() in {
+        "verify",
+        "confirm",
+        "verify / confirm",
+        "open",
+        "open link",
+        "continue",
+    }:
+        return "Open link"
+
+    if len(cleaned) > 32:
+        return f"{cleaned[:29].rstrip()}..."
+
+    return cleaned
+
+
+def _normalise_link_url(link: str | None) -> str | None:
+    """Return a safe http(s) verification link or ``None`` if invalid."""
+    cleaned = (link or "").strip()
+    if not cleaned:
+        return None
+
+    parsed = urlparse(cleaned)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+
+    return cleaned
+
+
 async def send_2fa_message(
     bot: Bot,
     email: str,
     summary: str,
     code: str | None,
     link: str | None,
+    link_label: str | None = None,
     sender_email: str | None = None,
 ) -> None:
     """Send a formatted 2FA notification to the account's forum topic.
@@ -330,12 +367,17 @@ async def send_2fa_message(
         summary: A human-readable summary of the 2FA email.
         code: The extracted verification code, or ``None``.
         link: The extracted verification link, or ``None``.
+        link_label: Short LLM-generated button text describing the link action.
         sender_email: The sender address from the original email, if available.
     """
     chat_id = _get_allowed_chat_id()
     thread_id = await get_or_create_topic(bot, email)
 
     parsed_sender = parseaddr(sender_email or "")[1] or (sender_email or "")
+
+    safe_link = _normalise_link_url(link)
+    if link and safe_link is None:
+        logger.warning("Skipping unsupported verification link for %s", email)
 
     parts: list[str] = []
 
@@ -349,6 +391,8 @@ async def send_2fa_message(
         if parts:
             parts.append("")
         parts.append(html.escape(summary))
+    elif not parts:
+        parts.append("Authentication request received")
 
     buttons: list[InlineKeyboardButton] = []
 
@@ -357,16 +401,14 @@ async def send_2fa_message(
             InlineKeyboardButton(
                 text=code,
                 copy_text=CopyTextButton(text=code),
-                icon_custom_emoji_id="5325998358890845889",
             )
         )
 
-    if link:
+    if safe_link:
         buttons.append(
             InlineKeyboardButton(
-                text="Verify / Confirm",
-                url=link,
-                icon_custom_emoji_id="5325520389160341366",
+                text=_normalise_link_label(link_label),
+                url=safe_link,
             )
         )
 

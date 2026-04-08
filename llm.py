@@ -54,9 +54,14 @@ verification should you output a single JSON object with these keys:
 (e.g. "GitHub login verification code").
    - "code": the 2FA / OTP / verification code as a string, or "" if none.
    - "link": the confirmation or verification URL as a string, or "" if none.
+   - "link_label": a short 2-4 word button label describing what opening the link \
+will do (e.g. "Approve login", "Verify email", "Confirm device", "Complete signup"), \
+or "" if there is no relevant auth link.
 4. Do NOT extract promo codes, order numbers, ticket numbers, reference IDs, or \
 links unrelated to authentication.
-5. Output ONLY the JSON object or the exact string NO_2FA_FOUND. Do NOT include \
+5. If "link" is non-empty, "link_label" must also be non-empty, specific, and \
+not generic. Never use labels like "Verify / Confirm".
+6. Output ONLY the JSON object or the exact string NO_2FA_FOUND. Do NOT include \
 any other text, explanation, or markdown formatting.\
 """
 
@@ -86,18 +91,25 @@ def _parse_response(text: str) -> dict | None:
     summary = str(data.get("summary", "")).strip()
     code = str(data.get("code", "")).strip()
     link = str(data.get("link", "")).strip()
+    link_label = " ".join(str(data.get("link_label", "")).split()).strip()
 
     if not code and not link:
         return None
 
-    return {"summary": summary, "code": code, "link": link}
+    return {
+        "summary": summary,
+        "code": code,
+        "link": link,
+        "link_label": link_label,
+    }
 
 
 async def extract_2fa_from_email(subject: str, body: str) -> dict | None:
     """Send the email to OpenRouter and extract 2FA information.
 
-    Returns a dict with keys ``summary``, ``code``, ``link`` when a 2FA code or
-    confirmation link is found, or ``None`` otherwise.
+    Returns a dict with keys ``summary``, ``code``, ``link``, and
+    ``link_label`` when a 2FA code or confirmation link is found, or
+    ``None`` otherwise.
     """
     user_message = f"Subject: {subject}\n\nBody:\n{body}"
 

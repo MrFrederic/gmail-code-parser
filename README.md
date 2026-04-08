@@ -241,11 +241,12 @@ When a 2FA email is detected, the bot posts it inside that account's dedicated T
 >
 > GitHub login verification code
 >
-> `[ 849302 ]   [ Verify / Confirm ]`
+> `[ 849302 ]   [ Approve login ]`
 
 - **The topic name identifies the Gmail account**, so the message body no longer repeats the receiving address.
 - **Verification codes** appear as a tap-to-copy inline button labeled with the code itself (for example, `849302`).
-- **Confirmation links** appear as a clickable inline button labeled **Verify / Confirm** that opens the URL directly.
+- **Confirmation links** appear as a clickable inline button with a short LLM-generated action label such as **Approve login**, **Verify email**, or **Confirm device**.
+- If the model cannot infer a more specific action label, the bot falls back to **Open link**.
 - If an email contains both a code and a link, the two buttons are shown side-by-side in a single row.
 - If an email contains only a code or only a link, only the relevant button is shown.
 - Removing an account closes its topic; reconnecting the same address reopens and reuses it.

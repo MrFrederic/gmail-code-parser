@@ -91,6 +91,7 @@ async def _process_message(bot, email_address: str, msg: dict) -> None:
         result.get("summary", ""),
         result.get("code"),
         result.get("link"),
+        link_label=result.get("link_label"),
         sender_email=from_address,
     )
 
