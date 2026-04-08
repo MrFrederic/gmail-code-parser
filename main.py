@@ -44,6 +44,17 @@ PRE_FILTER_PATTERN = re.compile(
             access\s*code|confirm(?:ation)?\s*code|auth(?:entication)?\s*code
         )\b
         |
+        # Norwegian
+        \b(?:
+            kode|passord|pin|pinkode|passkode|token|
+            bekreft(?:else|er|e|et)?|verifiser(?:ing|e|er|t)?|
+            godkjenn(?:ing|e|er|t)?|sikker(?:het|hetskode)?|tilgang(?:skode)?|
+            innlogging|logg\s*inn|pålogging|autentiser(?:ing|e|er|t)?|autorisasjon|
+            engangs(?:kode|passord)?|to[\s-]*faktor|totrinns(?:verifisering|innlogging)?|
+            flerfaktor|tofaktorautentisering|
+            sikkerhetskode|verifiseringskode|innloggingskode|bekreftelseskode
+        )\b
+        |
         # Russian
         \b(?:
             код|кода|кодом|пароль|пароля|паролем|пин|пинкод|пин-код|токен|
