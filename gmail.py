@@ -14,6 +14,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,14 @@ CLIENT_CONFIG = {
 
 class TokenRefreshError(Exception):
     """Raised when an OAuth2 token refresh fails."""
+
+
+def _is_not_found_error(exc: Exception) -> bool:
+    """Return ``True`` when the Gmail API error is an HTTP 404."""
+    if isinstance(exc, HttpError):
+        return exc.resp.status == 404
+    error_str = str(exc)
+    return "404" in error_str or "notFound" in error_str
 
 
 def _decode_base64url(data: str) -> str:
@@ -343,8 +352,7 @@ def fetch_new_messages(
                 break
 
     except Exception as exc:
-        error_str = str(exc)
-        if "404" in error_str or "notFound" in error_str:
+        if _is_not_found_error(exc):
             logger.warning(
                 "History ID %s not found for %s; may have expired",
                 history_id,
@@ -377,7 +385,15 @@ def fetch_new_messages(
                     "from_address": from_address,
                 }
             )
-        except Exception:
+        except Exception as exc:
+            if _is_not_found_error(exc):
+                logger.info(
+                    "Skipping message %s for %s because it no longer exists",
+                    msg_id,
+                    email,
+                )
+                continue
+
             logger.exception("Failed to fetch message %s for %s", msg_id, email)
 
     logger.info(

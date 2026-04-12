@@ -22,6 +22,8 @@ from google.cloud import pubsub_v1
 
 logger = logging.getLogger(__name__)
 
+_ACCOUNT_NOTIFICATION_LOCKS: dict[str, asyncio.Lock] = {}
+
 GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "")
 PUBSUB_SUBSCRIPTION_NAME = os.getenv("PUBSUB_SUBSCRIPTION_NAME", "")
 ENABLE_PRE_FILTER = os.getenv("ENABLE_PRE_FILTER", "false").lower() == "true"
@@ -124,55 +126,85 @@ async def _process_message(bot, email_address: str, msg: dict) -> None:
 
 async def _handle_pubsub_notification(bot, email_address: str, history_id: str) -> None:
     """Handle a single Pub/Sub push notification for an account."""
-    account = await database.get_account(email_address)
-    if account is None:
-        logger.warning("No account found for %s, skipping", email_address)
-        return
-    if not account.get("enabled", 1):
-        logger.info("Account %s is disabled, skipping", email_address)
-        return
+    account_lock = _ACCOUNT_NOTIFICATION_LOCKS.setdefault(
+        email_address, asyncio.Lock()
+    )
 
-    stored_history_id = account.get("history_id")
-    if stored_history_id is None:
-        logger.warning("No stored history_id for %s, updating and skipping", email_address)
-        await database.update_history_id(email_address, history_id)
-        return
+    async with account_lock:
+        account = await database.get_account(email_address)
+        if account is None:
+            logger.warning("No account found for %s, skipping", email_address)
+            return
+        if not account.get("enabled", 1):
+            logger.info("Account %s is disabled, skipping", email_address)
+            return
 
-    try:
-        service, creds = gmail.get_gmail_service(
-            email_address,
-            account["refresh_token"],
-            account.get("access_token"),
-            account.get("token_expiry"),
-        )
+        stored_history_id = account.get("history_id")
+        if stored_history_id is None:
+            logger.warning(
+                "No stored history_id for %s, updating and skipping",
+                email_address,
+            )
+            await database.update_history_id(email_address, history_id)
+            return
 
-        if creds.token != account.get("access_token"):
-            expiry_iso = creds.expiry.isoformat() if creds.expiry else None
-            await database.update_tokens(email_address, creds.token, expiry_iso)
-
-        messages = gmail.fetch_new_messages(service, email_address, stored_history_id)
-        await database.update_history_id(email_address, history_id)
-
-        for msg in messages:
-            try:
-                await _process_message(bot, email_address, msg)
-            except Exception:
-                logger.exception(
-                    "Error processing message %s for %s",
-                    msg.get("message_id", "unknown"),
+        try:
+            if int(history_id) <= int(stored_history_id):
+                logger.info(
+                    "Skipping stale notification for %s "
+                    "(incoming=%s, stored=%s)",
                     email_address,
+                    history_id,
+                    stored_history_id,
                 )
+                return
+        except ValueError:
+            logger.warning(
+                "Non-numeric historyId for %s (incoming=%s, stored=%s)",
+                email_address,
+                history_id,
+                stored_history_id,
+            )
 
-    except gmail.TokenRefreshError:
-        logger.error("Token refresh failed for %s, disabling account", email_address)
-        await database.disable_account(email_address)
-        await telegram_bot.send_alert_message(
-            bot,
-            f"Authorization expired or was revoked for {email_address}. "
-            "Please use /add to reconnect this account.",
-        )
-    except Exception:
-        logger.exception("Error handling notification for %s", email_address)
+        try:
+            service, creds = gmail.get_gmail_service(
+                email_address,
+                account["refresh_token"],
+                account.get("access_token"),
+                account.get("token_expiry"),
+            )
+
+            if creds.token != account.get("access_token"):
+                expiry_iso = creds.expiry.isoformat() if creds.expiry else None
+                await database.update_tokens(email_address, creds.token, expiry_iso)
+
+            messages = gmail.fetch_new_messages(
+                service,
+                email_address,
+                stored_history_id,
+            )
+            await database.update_history_id(email_address, history_id)
+
+            for msg in messages:
+                try:
+                    await _process_message(bot, email_address, msg)
+                except Exception:
+                    logger.exception(
+                        "Error processing message %s for %s",
+                        msg.get("message_id", "unknown"),
+                        email_address,
+                    )
+
+        except gmail.TokenRefreshError:
+            logger.error("Token refresh failed for %s, disabling account", email_address)
+            await database.disable_account(email_address)
+            await telegram_bot.send_alert_message(
+                bot,
+                f"Authorization expired or was revoked for {email_address}. "
+                "Please use /add to reconnect this account.",
+            )
+        except Exception:
+            logger.exception("Error handling notification for %s", email_address)
 
 
 async def _start_pubsub_listener(bot, shutdown_event: asyncio.Event) -> None:
